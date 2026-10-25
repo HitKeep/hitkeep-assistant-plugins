@@ -54,7 +54,7 @@ This repository is a first-party distribution source. It is **not a published or
 
 ## Connect HitKeep
 
-Follow the [HitKeep MCP guide](https://hitkeep.com/docs/guides/integrations/mcp/) for your instance's canonical endpoint, client support, and authentication. Use an account authorized for the sites you intend to analyze. Keep tokens out of prompts and repository files.
+Follow the [HitKeep MCP guide](https://hitkeep.com/guides/integrations/mcp/) for your instance's canonical endpoint, client support, and authentication. Use an account authorized for the sites you intend to analyze. Keep tokens out of prompts and repository files.
 
 The MCP surface is read-only and aggregate-only. These skills cannot configure sites, change goals, export raw hits, manage tokens, or perform billing or administration. Skill installation never expands the authenticated user's authority.
 
