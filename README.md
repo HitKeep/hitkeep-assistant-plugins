@@ -36,8 +36,8 @@ Start a new session, then invoke `$hitkeep-analytics` or another bundled skill. 
 Where native archive upload is available:
 
 1. Download [`hitkeep-analytics-2.15.0.zip`](https://github.com/HitKeep/hitkeep-assistant-plugins/releases/download/v2.15.0/hitkeep-analytics-2.15.0.zip) from the [release](https://github.com/HitKeep/hitkeep-assistant-plugins/releases/tag/v2.15.0).
-2. Open **Plugins → Add → Upload plugin archive** and select the ZIP.
-3. Review **HitKeep Analytics**, version **2.15.0**, and its five skills, then select **Install**.
+2. Open **Settings → Plugins → Browse catalog → Add → Upload plugin archive** and select the ZIP, then select **Add plugin**.
+3. Review **HitKeep Analytics**, version **2.15.0**, and its five skills, then select **Install plugin**.
 4. Use **Try in chat** to start with the installed plugin.
 
 This route was verified in signed-in ChatGPT web: the native plugin detail displayed version `2.15.0`, read capability, all five skills, and the installed **Manage** and **Try in chat** actions. It creates a private install, separate from public directory publication.
