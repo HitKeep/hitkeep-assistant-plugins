@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diagnose HitKeep Traffic"
+  short_description: "Explain HitKeep traffic changes safely"
+  default_prompt: "Use $hitkeep-traffic-diagnosis to investigate this HitKeep traffic change with scoped aggregate evidence."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyze HitKeep Ecommerce"
+  short_description: "Explain revenue and conversion movement"
+  default_prompt: "Use $hitkeep-ecommerce-analyst to explain this HitKeep ecommerce or conversion change with aggregate evidence."

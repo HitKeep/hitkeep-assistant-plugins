@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyze HitKeep AI Visibility"
+  short_description: "Interpret AI crawler and referral signals"
+  default_prompt: "Use $hitkeep-ai-visibility-analyst to analyze these HitKeep AI visibility signals without overstating correlation."
