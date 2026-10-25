@@ -1,6 +1,6 @@
 # HitKeep assistant plugins
 
-First-party [HitKeep](https://github.com/HitKeep/hitkeep) analytics skills for Claude, ChatGPT desktop, and Codex. One package contains the five canonical product skills, unchanged from the source commit recorded in [`source.json`](plugins/hitkeep-analytics/source.json):
+First-party [HitKeep](https://github.com/HitKeep/hitkeep) analytics skills for Claude, ChatGPT, and Codex. One package contains the five canonical product skills, unchanged from the source commit recorded in [`source.json`](plugins/hitkeep-analytics/source.json):
 
 - `hitkeep-analytics`
 - `hitkeep-traffic-diagnosis`
@@ -31,7 +31,16 @@ codex plugin add hitkeep-analytics@hitkeep
 
 Start a new session, then invoke `$hitkeep-analytics` or another bundled skill. To pin the marketplace to this release, add it with `--ref v2.15.0`.
 
-## ChatGPT desktop
+## ChatGPT
+
+Where native archive upload is available:
+
+1. Download [`hitkeep-analytics-2.15.0.zip`](https://github.com/HitKeep/hitkeep-assistant-plugins/releases/download/v2.15.0/hitkeep-analytics-2.15.0.zip) from the [release](https://github.com/HitKeep/hitkeep-assistant-plugins/releases/tag/v2.15.0).
+2. Open **Plugins → Add → Upload plugin archive** and select the ZIP.
+3. Review **HitKeep Analytics**, version **2.15.0**, and its five skills, then select **Install**.
+4. Use **Try in chat** to start with the installed plugin.
+
+This route was verified in signed-in ChatGPT web: the native plugin detail displayed version `2.15.0`, read capability, all five skills, and the installed **Manage** and **Try in chat** actions. It creates a private install, separate from public directory publication.
 
 The OpenAI marketplace catalog also supports local repository discovery in ChatGPT desktop Work mode and Codex, where those features are available:
 
@@ -41,7 +50,7 @@ git clone --branch v2.15.0 https://github.com/HitKeep/hitkeep-assistant-plugins.
 
 Open the cloned repository as your project, restart ChatGPT desktop, then choose **HitKeep** in the Plugins Directory and install **HitKeep Analytics**. The catalog lives at `.agents/plugins/marketplace.json` and points to the same portable package used by Codex.
 
-This repository is a first-party distribution source. It is **not a published or approved listing in the universal ChatGPT/Codex directory**. Local repository discovery does not establish web/mobile availability or a successful authenticated connection. See the [official OpenAI packaging documentation](https://developers.openai.com/plugins/build/plugins) for current client support.
+This repository is a first-party distribution source. It is **not a published or approved listing in the universal ChatGPT/Codex directory**. Installing skills does not establish an authenticated connection. See the [official OpenAI packaging documentation](https://developers.openai.com/plugins/build/plugins) for current client support.
 
 ## Connect HitKeep
 
