@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/HitKeep/hitkeep",
+  "commit": "d90312655d187ecf61055e344092704651bf01cf",
+  "sha256": {
+    "skills/hitkeep-ai-visibility-analyst/SKILL.md": "b4d4974c01c38f72220cb6338e75ef83be1511b12caf61457c9c9480c9bd67b4",
+    "skills/hitkeep-ai-visibility-analyst/agents/openai.yaml": "29c111afddbdd858c378fb1b14c88bfd0f3c0cadfe1a688cef6d17c1ed0e5469",
+    "skills/hitkeep-ai-visibility-analyst/references/procedure.md": "1fa8843a5028b70c2d93d13172cafdf95def50b297c97d997acbc6443ab1bc3b",
+    "skills/hitkeep-analytics/SKILL.md": "7dd86ced8f32573f4f58ba7dba9061d1ee65b179ed397357aecadbccad82dc24",
+    "skills/hitkeep-analytics/agents/openai.yaml": "048ede1a42d1c64edf956382143fbf33e4c5e15ce594a16491fe51f6d6313862",
+    "skills/hitkeep-analytics/references/procedure.md": "614f88b85dde77bdba2770e19cd4e718196fe63185068ad31d0f1f9bf341c712",
+    "skills/hitkeep-ecommerce-analyst/SKILL.md": "c114457301cd2748f039f4d130ed4254269e623775213e5abe11b215a8b6874b",
+    "skills/hitkeep-ecommerce-analyst/agents/openai.yaml": "713f7a93c1117d60444a2b3232eecce3599f49135df44628d45a3771bebf2a88",
+    "skills/hitkeep-ecommerce-analyst/references/procedure.md": "d292acdc9726c820e6ba613d500936cfcf9d6c5677272d0fdcb8cfcb0f92a458",
+    "skills/hitkeep-tracking-verifier/SKILL.md": "fbc9b706a2fdebece9618c75830dc6996dace32f10dc31e0b5c2a470d66be20b",
+    "skills/hitkeep-tracking-verifier/agents/openai.yaml": "dc71e7c78f3b1871377777a6948c71014287fff39e577d3c362c64682cff70d2",
+    "skills/hitkeep-tracking-verifier/references/procedure.md": "59b9d1183bafe487cbadfb3caee96a2e2ef6b25c6be61515763ece3c587b0e7a",
+    "skills/hitkeep-traffic-diagnosis/SKILL.md": "4a92a5b35698a0286bc73eb61391d65920bd731fcae40b676d01042703116c32",
+    "skills/hitkeep-traffic-diagnosis/agents/openai.yaml": "729c1407cd226703d96378ad18d06170e3997b67d93b69c2e66dda21d5598c07",
+    "skills/hitkeep-traffic-diagnosis/references/procedure.md": "75cfaa4b07f4e24baa3cb861f1c13a42432458f0031761bc41dab13d19ec2ebe",
+    "LICENSE": "2bd605b63db3a26377d8c2591872ad849e2be32e55bb8c98fec18ed7bb01a426"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "hitkeep-analytics",
+  "version": "2.15.0",
+  "description": "Read-only HitKeep analytics workflows for connected assistants.",
+  "author": { "name": "HitKeep" },
+  "license": "MIT",
+  "skills": "./skills/"
+}

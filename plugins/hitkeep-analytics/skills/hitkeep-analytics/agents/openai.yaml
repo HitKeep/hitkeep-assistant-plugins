@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyze HitKeep"
+  short_description: "Analyze scoped HitKeep analytics safely"
+  default_prompt: "Use $hitkeep-analytics to answer this HitKeep analytics question with scoped aggregate evidence."
