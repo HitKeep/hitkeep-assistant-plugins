@@ -207,7 +207,32 @@ def prepare(tag, sha, digest, root, temp):
 
 
 def matching_tree(root, commit, files):
-    return all(package.git(root, 'show', commit + ':' + path) == data for path, data in files.items())
+    roots = ('plugins/' + package.NAME, '.claude-plugin', '.agents/plugins', 'LICENSE')
+    entries = {}
+    for entry in package.git(root, 'ls-tree', '-r', '-z', commit, '--', *roots).split(b'\0'):
+        if entry:
+            metadata, path = entry.split(b'\t', 1)
+            entries[path.decode()] = tuple(metadata.decode().split()[:2])
+    if (set(files) != package.GENERATED or
+            entries != dict.fromkeys(package.GENERATED, ('100644', 'blob'))):
+        raise ValueError('generated tree membership or regular non-executable modes differ from allowlist')
+    actual = {path: package.git(root, 'show', commit + ':' + path) for path in package.GENERATED}
+    with tempfile.TemporaryDirectory(prefix='hitkeep-assistant-tree-') as directory:
+        stage = Path(directory)
+        for relative, data in actual.items():
+            path = stage / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        package.verify(stage)
+    for path in package.GENERATED:
+        if path.endswith('/marketplace.json'):
+            current, expected = json.loads(actual[path]), json.loads(files[path])
+            if path == '.claude-plugin/marketplace.json':
+                # Main may hold another version; all other catalog content stays reviewed.
+                current['plugins'][0]['version'] = expected['plugins'][0]['version']
+            if current != expected:
+                raise ValueError('generated native catalog content differs from reviewed template')
+    return actual == files
 
 
 def guard(state):

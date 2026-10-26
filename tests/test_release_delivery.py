@@ -135,6 +135,15 @@ class DeliveryTests(unittest.TestCase):
                 delivery.version(value)
 
 
+class QueuePolicyTests(unittest.TestCase):
+    def test_global_receiver_queue_preserves_multiple_pending_native_releases(self):
+        workflow = (ROOT / '.github/workflows/sync-hitkeep-release.yml').read_text()
+        concurrency = workflow.split('\nconcurrency:\n', 1)[1].split('\nenv:\n', 1)[0]
+        self.assertIn('  group: sync-hitkeep-release\n', concurrency)
+        self.assertIn('  cancel-in-progress: false\n', concurrency)
+        self.assertIn('  queue: max\n', concurrency)
+
+
 class WriterTests(unittest.TestCase):
     """Real local Git objects/pushes, fake GitHub APIs; never touches a public repository."""
     def setUp(self):
@@ -242,6 +251,87 @@ class WriterTests(unittest.TestCase):
         directory = self.base / ('attempt-' + str(len(list(self.base.glob('attempt-*')))))
         directory.mkdir()
         return delivery.write(state or self.state, self.root, directory)
+
+    def generated_commit(self, files=None, extras=None, modes=None):
+        import os
+        import subprocess
+        with tempfile.TemporaryDirectory(dir=self.base) as directory:
+            env = dict(os.environ, GIT_INDEX_FILE=str(Path(directory) / 'index'))
+            def git(*args, data=None):
+                return subprocess.check_output(['git', '-C', str(self.root), *args], input=data,
+                                               env=env, stderr=subprocess.PIPE).decode().strip()
+            parent = self.git(self.root, 'rev-parse', 'HEAD')
+            git('read-tree', parent)
+            for path, data in {**(files or {}), **(extras or {})}.items():
+                blob = git('hash-object', '-w', '--stdin', data=data)
+                git('update-index', '--add', '--cacheinfo', (modes or {}).get(path, '100644') + ',' + blob + ',' + path)
+            for path, mode in (modes or {}).items():
+                if path not in (files or {}) and path not in (extras or {}):
+                    blob = git('rev-parse', parent + ':' + path)
+                    git('update-index', '--cacheinfo', mode + ',' + blob + ',' + path)
+            tree = git('write-tree')
+            return git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                       'commit-tree', tree, '-p', parent, '-m', 'generated tree fixture')
+
+    def assert_generated_refused(self, ref, *, extras=None, modes=None, files=None):
+        commit = self.generated_commit(files=self.state['tree'] if ref.startswith('refs/tags/') else files,
+                                       extras=extras, modes=modes)
+        self.git(self.root, 'push', str(self.remote), commit + ':' + ref)
+        if ref == 'refs/heads/main':
+            self.state['head'] = commit
+        before_main = self.head()
+        before_refs = self.git(self.remote, 'show-ref')
+        with self.assertRaises(ValueError):
+            self.write()
+        self.assertEqual(self.mutations, [])
+        self.assertEqual(self.head(), before_main)
+        self.assertEqual(self.git(self.remote, 'show-ref'), before_refs)
+        self.assertEqual(self.releases['v2.15.0']['assets'], [dict(name='preserved.zip')])
+
+    def test_existing_tag_rejects_extra_plugin_hook_even_when_expected_bytes_match(self):
+        self.assert_generated_refused('refs/tags/v2.15.1',
+            extras={'plugins/hitkeep-analytics/hooks/hooks.json': b'{"hooks":{}}'})
+
+    def test_current_main_rejects_extra_plugin_file_instead_of_carrying_it_forward(self):
+        self.assert_generated_refused('refs/heads/main',
+            extras={'plugins/hitkeep-analytics/private.txt': b'not attested'})
+
+    def test_existing_tag_rejects_extra_claude_catalog_content(self):
+        self.assert_generated_refused('refs/tags/v2.15.1',
+            extras={'.claude-plugin/hooks/hooks.json': b'{"hooks":{}}'})
+
+    def test_current_main_rejects_extra_openai_catalog_content(self):
+        self.assert_generated_refused('refs/heads/main',
+            extras={'.agents/plugins/extra.json': b'{}'})
+
+    def test_existing_tag_rejects_executable_generated_file(self):
+        self.assert_generated_refused('refs/tags/v2.15.1',
+            modes={'plugins/hitkeep-analytics/skills/hitkeep-analytics/SKILL.md': '100755'})
+
+    def test_current_main_rejects_symlink_mode_with_matching_catalog_bytes(self):
+        self.assert_generated_refused('refs/heads/main', files=self.state['tree'],
+            modes={'.agents/plugins/marketplace.json': '120000'})
+
+    def test_current_main_rejects_unexpected_native_catalog_fields(self):
+        path = '.claude-plugin/marketplace.json'
+        data = json.loads((self.root / path).read_bytes())
+        data['hooks'] = {'unexpected': 'not attested'}
+        self.assert_generated_refused('refs/heads/main', files={path: json.dumps(data).encode()})
+
+    def test_complete_matching_tag_is_noop_and_repository_owned_files_are_preserved(self):
+        owned = {'scripts/owned.py': b'raise RuntimeError("never execute")',
+                 '.github/workflows/owned.yml': b'name: preserved', 'README.md': b'repository README',
+                 '.agents/skills/repository-owned/SKILL.md': b'not a generated product skill'}
+        commit = self.generated_commit(files=self.state['tree'], extras=owned)
+        self.git(self.root, 'push', str(self.remote), commit + ':refs/heads/main', commit + ':refs/tags/v2.15.1')
+        self.state['head'] = commit
+        self.latest = 'v2.15.1'
+        self.releases[self.latest] = dict(tag_name=self.latest, draft=False, prerelease=False,
+                                         body=delivery.release_notes(self.state), assets=[])
+        self.assertEqual(self.write(), 'main-and-tag')
+        self.assertEqual(self.mutations, [])
+        for path, data in owned.items():
+            self.assertEqual(delivery.package.git(self.remote, 'show', commit + ':' + path), data)
 
     def test_newest_fast_forwards_only_generated_files_and_retry_is_noop(self):
         old = self.head()

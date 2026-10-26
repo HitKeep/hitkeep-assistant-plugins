@@ -21,6 +21,7 @@ permissions:
 concurrency:
   group: sync-hitkeep-release
   cancel-in-progress: false
+  queue: max
 
 env:
   RELEASE_TAG: ${{ inputs.release_tag }}
