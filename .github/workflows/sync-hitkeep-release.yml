@@ -1,0 +1,65 @@
+name: Sync verified HitKeep release
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published stable app tag (vX.Y.Z)
+        required: true
+        type: string
+      source_sha:
+        description: Exact app source commit
+        required: true
+        type: string
+      package_sha256:
+        description: Attested assistant ZIP SHA-256
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-hitkeep-release
+  cancel-in-progress: false
+  queue: max
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag }}
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  PACKAGE_SHA256: ${{ inputs.package_sha256 }}
+  GIT_TERMINAL_PROMPT: '0'
+
+jobs:
+  verify:
+    if: github.repository == 'HitKeep/hitkeep-assistant-plugins' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify public candidate, producer attempt and canonical package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_delivery.py verify --release-tag "$RELEASE_TAG" --source-sha "$SOURCE_SHA" --package-sha256 "$PACKAGE_SHA256"
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reverify, fast-forward generated files and publish immutable native ref
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_delivery.py publish --release-tag "$RELEASE_TAG" --source-sha "$SOURCE_SHA" --package-sha256 "$PACKAGE_SHA256"

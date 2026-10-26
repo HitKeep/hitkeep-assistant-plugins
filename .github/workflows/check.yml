@@ -9,7 +9,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - run: python3 scripts/package.py
+      - name: Read canonical app commit
+        id: source
+        run: |
+          python3 - <<'PYCODE' >> "$GITHUB_OUTPUT"
+          import json, re
+          sha = json.load(open("plugins/hitkeep-analytics/source.json"))["commit"]
+          assert re.fullmatch(r"[0-9a-f]{40}", sha)
+          print("sha=" + sha)
+          PYCODE
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: HitKeep/hitkeep
+          ref: ${{ steps.source.outputs.sha }}
+          path: .canonical-app
+          persist-credentials: false
+      - run: python3 scripts/package.py --verify-source .canonical-app --source-sha "${{ steps.source.outputs.sha }}"
       - run: python3 -m unittest discover -s tests
       - run: python3 scripts/package.py --output /tmp/hitkeep-analytics.zip
+      - run: python3 scripts/package.py --output /tmp/hitkeep-analytics-again.zip
+      - run: cmp /tmp/hitkeep-analytics.zip /tmp/hitkeep-analytics-again.zip
       - run: unzip -t /tmp/hitkeep-analytics.zip
