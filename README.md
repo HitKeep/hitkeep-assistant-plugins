@@ -72,6 +72,13 @@ python3 scripts/package.py --output dist/hitkeep-analytics-2.15.0.zip
 
 The verifier checks both native catalogs, matching manifest identities and versions, the exact skill allowlist, and every canonical file hash. The ZIP contains one plugin directory with both native manifests and the same skills; it has deterministic file order, timestamps, and permissions.
 
-For an update, export only the five skill directories and `LICENSE` from the next reviewed commit of `HitKeep/hitkeep`, update their hashes and commit in `source.json`, and update both manifest versions and the Claude catalog version together. Keep `skills/` in the application repository canonical; changes to analytics instructions belong there first. Do not publish test fixtures or add credentials to a package.
+For an update, check out an immutable reviewed app commit, then use the existing packager:
+
+```sh
+python3 scripts/package.py --sync-from ../hitkeep --source-sha FULL_APP_COMMIT --version X.Y.Z
+python3 scripts/package.py --verify-source ../hitkeep --source-sha FULL_APP_COMMIT
+```
+
+Sync reads committed Git objects, stages and verifies all generated files before replacement, and records the app and packager commits in `source.json`. It copies exactly the five product skills' `SKILL.md`, `references/procedure.md`, and `agents/openai.yaml` files plus `LICENSE`; contributor `.agents/skills/` content never enters the package. Both native manifests and the Claude catalog advance together; the OpenAI catalog retains its native schema. CI independently retrieves the recorded app commit and compares bytes, so rewriting a local inventory cannot authorize changed skills. Keep application `skills/` canonical; analytics instruction changes belong there first. Ask AI continues to consume only the product procedure references.
 
 MIT licensed; see [LICENSE](LICENSE).
