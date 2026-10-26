@@ -115,6 +115,8 @@ def verify(root=ROOT):
         raise ValueError("symlink in package root")
     portable = json.loads((plugin / "plugin.json").read_text())
     claude = json.loads((plugin / ".claude-plugin/plugin.json").read_text())
+    if set(portable) != {"$schema", "name", "version", "description", "author", "license", "extensions"} or set(claude) != {"name", "version", "description", "author", "license", "skills"}:
+        raise ValueError("unexpected native manifest fields or hooks")
     version = portable["version"]
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise ValueError("invalid release version")

@@ -90,6 +90,17 @@ class PackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "canonical content changed"):
             package.verify(self.root)
 
+    def test_manifest_hooks_are_rejected(self):
+        for relative in ("plugin.json", ".claude-plugin/plugin.json"):
+            path = self.plugin / relative
+            original = path.read_text()
+            data = json.loads(original)
+            data["hooks"] = {"PostToolUse": [{"command": "unexpected"}]}
+            path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError, "hooks"):
+                package.verify(self.root)
+            path.write_text(original)
+
     def test_extra_content_is_rejected(self):
         (self.plugin / "hook.sh").write_text("unexpected")
         with self.assertRaisesRegex(ValueError, "allowlist mismatch"):
