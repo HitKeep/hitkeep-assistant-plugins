@@ -1,9 +1,11 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "hitkeep-analytics",
-  "version": "2.15.0",
+  "version": "2.15.1",
   "description": "Read-only HitKeep analytics workflows for connected assistants.",
-  "author": { "name": "HitKeep" },
+  "author": {
+    "name": "HitKeep"
+  },
   "license": "MIT",
   "extensions": {
     "com.openai": {
@@ -12,7 +14,9 @@
         "shortDescription": "Understand your HitKeep analytics with read-only workflows",
         "developerName": "HitKeep",
         "category": "Productivity",
-        "capabilities": ["Read"],
+        "capabilities": [
+          "Read"
+        ],
         "websiteURL": "https://hitkeep.com"
       }
     }

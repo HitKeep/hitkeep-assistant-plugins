@@ -1,13 +1,15 @@
 {
   "name": "hitkeep",
   "description": "First-party HitKeep analytics skills for connected assistants.",
-  "owner": { "name": "HitKeep" },
+  "owner": {
+    "name": "HitKeep"
+  },
   "plugins": [
     {
       "name": "hitkeep-analytics",
       "source": "./plugins/hitkeep-analytics",
       "description": "Read-only HitKeep analytics workflows for connected assistants.",
-      "version": "2.15.0"
+      "version": "2.15.1"
     }
   ]
 }
