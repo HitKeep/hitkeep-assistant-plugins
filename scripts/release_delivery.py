@@ -40,7 +40,7 @@ def command(*args, data=None, optional=False, env=None):
 
 
 def api(repo, path, optional=False):
-    raw = command('gh', 'api', f'repos/{repo}/{path}', optional=optional)
+    raw = command('gh', 'api', f'repos/{repo}/{path}'.rstrip('/'), optional=optional)
     return json.loads(raw) if raw is not None else None
 
 

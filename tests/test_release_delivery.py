@@ -17,6 +17,13 @@ delivery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(delivery)
 
 
+class APITransportTests(unittest.TestCase):
+    def test_repository_metadata_uses_canonical_api_root(self):
+        with patch.object(delivery, 'command', return_value=b'{}') as command:
+            self.assertEqual(delivery.api(delivery.APP, ''), {})
+        command.assert_called_once_with('gh', 'api', 'repos/' + delivery.APP, optional=False)
+
+
 class DeliveryTests(unittest.TestCase):
     def setUp(self):
         self.sha = 'a' * 40
