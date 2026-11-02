@@ -98,3 +98,12 @@ To recover a partially completed delivery:
 The run summary records the source/tag/digest, output ref and main readback, and whether delivery advanced main or created a historical ref. A native installation proves client packaging only; authenticated read-only aggregate MCP access still requires the separate connection described above. Private docs and cloud deployment follow their own authorized workflows.
 
 MIT licensed; see [LICENSE](LICENSE).
+
+
+## Public skill archives
+
+New canonical builds run the application's `cmd/skillpack` at the exact source commit. It calls the same `skills.PublicIndex` and `skills.PublicArchive` functions used by the runtime; this repository does not serialize a second ZIP format or author a second procedure. The native ZIP includes `public/index.json`, five deterministic ZIPs, and `public/source.json` with the same app and packager identities. Each per-skill ZIP contains exactly `SKILL.md` and `references/procedure.md`, unchanged, with raw-byte SHA-256 in the v0.2 index. Contributor skills and agent-specific native metadata do not enter those two-file archives.
+
+The existing signed application release candidate authenticates the enclosing native package digest. The receiver accepts either the complete legacy package or the complete new public-artifact inventory, verifies regular files, bounded sizes, exact member content and digests, and preserves immutable tags and prior releases. Downloaded packages remain data: the receiver never executes the producer or package content. Marketing mirrors those exact verified bytes at the versioned URLs in the index. An empty website index means no capable release has been synchronized yet.
+
+Activation requires publishing a reviewed packager revision and updating the application's immutable packager pin through the normal release workflow; these source changes do not publish or deploy that revision. Historical packages without the new public inventory stay valid.

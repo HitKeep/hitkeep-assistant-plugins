@@ -17,6 +17,34 @@ delivery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(delivery)
 
 
+
+def fixture_public(source_root, source_commit, output, version, timestamp_extra=b""):
+    output.mkdir()
+    entries = []
+    class Stream(io.BytesIO):
+        def seek(self, *args): raise OSError("stream")
+    for name in sorted(delivery.package.SKILLS):
+        data = Stream()
+        with zipfile.ZipFile(data, "w") as archive:
+            for relative in ["SKILL.md", "references/procedure.md"]:
+                item = zipfile.ZipInfo(relative, (1980, 1, 1, 0, 0, 0))
+                item.create_system = 3
+                item.extra = timestamp_extra
+                item.external_attr = 0o100644 << 16
+                archive.writestr(item, delivery.package.git(source_root, "show", f"{source_commit}:skills/{name}/{relative}"))
+        raw = data.getvalue()
+        (output / (name + ".zip")).write_bytes(raw)
+        entries.append(dict(name=name, type="archive", description="Fixture skill", url=f"https://hitkeep.com/skills/v{version}/{name}.zip", digest="sha256:" + hashlib.sha256(raw).hexdigest()))
+    (output / "index.json").write_text(json.dumps({"$schema":"https://schemas.agentskills.io/discovery/0.2.0/schema.json", "skills":entries}))
+
+
+
+_original_sync = delivery.package.sync
+def _fixture_sync(*args, **kwargs):
+    with patch.object(delivery.package, "produce_public", side_effect=fixture_public):
+        return _original_sync(*args, **kwargs)
+
+
 class APITransportTests(unittest.TestCase):
     def test_repository_metadata_uses_canonical_api_root(self):
         with patch.object(delivery, 'command', return_value=b'{}') as command:
@@ -163,6 +191,15 @@ class WriterTests(unittest.TestCase):
         for name in ('plugins', '.claude-plugin', '.agents'):
             shutil.copytree(ROOT / name, self.root / name)
         shutil.copyfile(ROOT / 'LICENSE', self.root / 'LICENSE')
+        shutil.rmtree(self.root / 'plugins/hitkeep-analytics/public', ignore_errors=True)
+        # Keep the baseline historical even after the checked-in distribution advances.
+        for relative in ('plugins/hitkeep-analytics/plugin.json', 'plugins/hitkeep-analytics/.claude-plugin/plugin.json'):
+            path = self.root / relative
+            data = json.loads(path.read_text()); data['version'] = '2.15.0'
+            path.write_text(json.dumps(data))
+        path = self.root / '.claude-plugin/marketplace.json'
+        data = json.loads(path.read_text()); data['plugins'][0]['version'] = '2.15.0'
+        path.write_text(json.dumps(data))
         (self.root / 'reviewed-code').write_text('must not change')
         self.git(self.root, 'init', '-q', '-b', 'main')
         self.git(self.root, 'add', '-f', '.')
@@ -356,6 +393,39 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(previous, self.mutations)
         self.assertEqual(self.releases['v2.15.0']['assets'], [dict(name='preserved.zip')])
 
+    def test_public_artifacts_publish_once_and_legacy_backport_keeps_its_shape(self):
+        state = self.new_state('v2.16.0')
+        tree = state['tree']
+        prefix = 'plugins/' + delivery.package.NAME + '/'
+        entries = []
+        class Stream(io.BytesIO):
+            def seek(self, *args): raise OSError('stream')
+        for name in sorted(delivery.package.SKILLS):
+            raw = Stream()
+            with zipfile.ZipFile(raw, 'w') as archive:
+                for relative in ['SKILL.md', 'references/procedure.md']:
+                    entry = zipfile.ZipInfo(relative, (1980, 1, 1, 0, 0, 0))
+                    entry.create_system = 3
+                    entry.external_attr = 0o100644 << 16
+                    archive.writestr(entry, tree[prefix + f'skills/{name}/{relative}'])
+            data = raw.getvalue()
+            tree[prefix + 'public/' + name + '.zip'] = data
+            entries.append(dict(name=name, type='archive', description='Fixture', url=f'https://hitkeep.com/skills/v2.16.0/{name}.zip', digest='sha256:' + hashlib.sha256(data).hexdigest()))
+        source = json.loads(tree[prefix + 'source.json'])
+        tree[prefix + 'public/source.json'] = json.dumps({key: source[key] for key in ('repository', 'commit', 'packager_commit')}).encode()
+        tree[prefix + 'public/index.json'] = json.dumps({'$schema': 'https://schemas.agentskills.io/discovery/0.2.0/schema.json', 'skills': entries}).encode()
+        self.assertEqual(self.write(state), 'main-and-tag')
+        head = self.head()
+        state['head'] = head
+        self.assertEqual(self.write(state), 'main-and-tag')
+        self.assertEqual(self.head(), head)
+        legacy = self.new_state('v2.14.9')
+        self.assertEqual(self.write(legacy), 'historical-tag-only')
+        historical = self.tag(delivery.REPO, 'v2.14.9')
+        paths = self.git(self.remote, 'ls-tree', '-r', '--name-only', historical).splitlines()
+        self.assertFalse(any(path.startswith(prefix + 'public/') for path in paths))
+        self.assertEqual(self.head(), head)
+
     def test_backport_creates_only_historical_tag_and_link(self):
         self.write()
         head = self.head()
@@ -429,7 +499,7 @@ class PrepareTests(DeliveryTests):
         generated.mkdir()
         for name in ('plugins', '.claude-plugin', '.agents'):
             shutil.copytree(ROOT / name, generated / name)
-        delivery.package.sync(self.source, self.sha, '2.15.1', generated)
+        _fixture_sync(self.source, self.sha, '2.15.1', generated)
         output = self.base / 'package.zip'
         delivery.package.package(output, generated)
         self.raw = output.read_bytes()
@@ -499,7 +569,7 @@ class PrepareTests(DeliveryTests):
         report = delivery.deliver('v2.15.1', self.sha, self.digest, ROOT, writer=writer)
         writer.assert_called_once()
         self.assertEqual(report['disposition'], 'verified-fixture')
-        self.assertEqual(set(writer.call_args.args[0]['tree']), delivery.package.GENERATED)
+        self.assertEqual(set(writer.call_args.args[0]['tree']), delivery.package.GENERATED | {f'plugins/{delivery.package.NAME}/{path}' for path in delivery.package.PUBLIC})
 
     def test_faults_never_reach_writer(self):
         scenarios = ('private', 'draft', 'prerelease', 'moved-tag', 'wrong-attempt', 'wrong-signer',

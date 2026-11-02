@@ -6,6 +6,9 @@ import json
 import hashlib
 import tempfile
 import unittest
+import io
+import zipfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("package", ROOT / "scripts/package.py")
@@ -21,6 +24,10 @@ class PackageTests(unittest.TestCase):
         for name in ("plugins", ".claude-plugin", ".agents"):
             shutil.copytree(ROOT / name, self.root / name)
         self.plugin = self.root / "plugins/hitkeep-analytics"
+        from test_release_delivery import fixture_public
+        mock = patch.object(package, "produce_public", side_effect=fixture_public)
+        mock.start()
+        self.addCleanup(mock.stop)
 
     def source(self):
         source = self.root / "upstream"
@@ -36,6 +43,49 @@ class PackageTests(unittest.TestCase):
         git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "fixture")
         return source, git("rev-parse", "HEAD"), git
 
+    def test_public_archives_are_exact_deterministic_canonical_files(self):
+        source, commit, _ = self.source()
+        package.sync(source, commit, "2.16.0", self.root)
+        public = self.plugin / "public"
+        index = json.loads((public / "index.json").read_text())
+        self.assertEqual(index["$schema"], "https://schemas.agentskills.io/discovery/0.2.0/schema.json")
+        self.assertEqual({entry["name"] for entry in index["skills"]}, package.SKILLS)
+        self.assertEqual({p.name for p in public.iterdir()}, {"index.json", "source.json"} | {name + ".zip" for name in package.SKILLS})
+        self.assertEqual(json.loads((public / "source.json").read_text())["commit"], commit)
+        for entry in index["skills"]:
+            raw = (public / (entry["name"] + ".zip")).read_bytes()
+            self.assertEqual(entry["digest"], "sha256:" + hashlib.sha256(raw).hexdigest())
+            self.assertEqual(entry["url"], "https://hitkeep.com/skills/v2.16.0/" + entry["name"] + ".zip")
+            with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                self.assertEqual(archive.namelist(), ["SKILL.md", "references/procedure.md"])
+                for item in archive.infolist():
+                    self.assertEqual(archive.read(item), (self.plugin / "skills" / entry["name"] / item.filename).read_bytes())
+                    self.assertEqual(item.compress_type, zipfile.ZIP_STORED)
+                    self.assertEqual(item.date_time, (1980, 1, 1, 0, 0, 0))
+                    self.assertEqual(item.external_attr >> 16, 0o100644)
+                    self.assertEqual(item.flag_bits, 8)
+                    self.assertEqual(item.extra, b"")
+
+        (public / (index["skills"][0]["name"] + ".zip")).write_bytes(b"tampered")
+        with self.assertRaisesRegex(ValueError, "public artifact"):
+            package.verify(self.root)
+
+    def test_public_timestamp_metadata_accepts_only_legacy_or_fixed_go_epoch(self):
+        from test_release_delivery import fixture_public
+        source, commit, _ = self.source()
+        fixed_epoch = bytes.fromhex("555405000100a6ce12")
+        for extra, accepted in [(b"", True), (fixed_epoch, True), (fixed_epoch[:-1] + b"\x13", False), (b"\x00\x00\x00\x00", False)]:
+            with self.subTest(extra=extra):
+                def produce(*args):
+                    return fixture_public(*args, timestamp_extra=extra)
+                with patch.object(package, "produce_public", side_effect=produce):
+                    if accepted:
+                        package.sync(source, commit, "2.16.0", self.root)
+                        package.verify(self.root)
+                    else:
+                        with self.assertRaisesRegex(ValueError, "public artifact"):
+                            package.sync(source, commit, "2.16.0", self.root)
+
     def test_rehashed_tamper_fails_independent_source_verification(self):
         source, commit, _ = self.source()
         package.sync(source, commit, "2.15.1", self.root)
@@ -45,8 +95,8 @@ class PackageTests(unittest.TestCase):
         data = json.loads(inventory.read_text())
         data["sha256"]["skills/hitkeep-analytics/SKILL.md"] = hashlib.sha256(path.read_bytes()).hexdigest()
         inventory.write_text(json.dumps(data))
-        package.verify(self.root)
-        with self.assertRaisesRegex(ValueError, "upstream content"):
+        # Rehashing the authored file cannot authorize a different archive or canonical source.
+        with self.assertRaisesRegex(ValueError, "public artifact|upstream content"):
             package.verify_source(source, commit, self.root)
 
     def test_sync_uses_immutable_source_and_updates_versions(self):
@@ -113,7 +163,9 @@ class PackageTests(unittest.TestCase):
 
     def test_mismatched_version_is_rejected(self):
         path = self.plugin / ".claude-plugin/plugin.json"
-        path.write_text(path.read_text().replace('"2.15.0"', '"0.0.0"'))
+        data = json.loads(path.read_text())
+        data["version"] = "0.0.0"
+        path.write_text(json.dumps(data))
         with self.assertRaisesRegex(ValueError, "manifest mismatch"):
             package.verify(self.root)
 
