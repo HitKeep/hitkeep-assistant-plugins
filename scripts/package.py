@@ -3,6 +3,8 @@
 
 import argparse
 import hashlib
+import io
+import tarfile
 import json
 from pathlib import Path
 import re
@@ -25,6 +27,57 @@ CANONICAL = {f"skills/{name}/{part}" for name in SKILLS for part in (
 GENERATED = {f"plugins/{NAME}/{path}" for path in CANONICAL | {
     "plugin.json", ".claude-plugin/plugin.json", "source.json", "README.md"
 }} | {"LICENSE", ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"}
+
+PUBLIC = {"public/index.json", "public/source.json"} | {f"public/{name}.zip" for name in SKILLS}
+
+# Go emits this fixed UTC modification timestamp; older artifacts omit it.
+PUBLIC_MODIFIED_EXTRA = bytes.fromhex("555405000100a6ce12")
+
+
+def generated(root):
+    return GENERATED | ({f"plugins/{NAME}/{path}" for path in PUBLIC}
+                        if (Path(root) / "plugins" / NAME / "public").exists() else set())
+
+
+def produce_public(source_root, source_commit, output, version):
+    # Execute the canonical producer only during trusted build, never in the release receiver.
+    with tempfile.TemporaryDirectory(prefix="hitkeep-skillpack-source-") as directory:
+        source = Path(directory)
+        raw = git(source_root, "archive", source_commit, "--", "go.mod", "go.sum", "appurl", "skills", "cmd/skillpack")
+        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+            archive.extractall(source, filter="data")
+        subprocess.run(["go", "run", "./cmd/skillpack", "--output", str(output),
+                        "--base-url", f"https://hitkeep.com/skills/v{version}"], cwd=source, check=True)
+
+
+def verify_public(plugin, version):
+    public = plugin / "public"
+    index = json.loads((public / "index.json").read_bytes())
+    source = json.loads((plugin / "source.json").read_bytes())
+    if (json.loads((public / "source.json").read_bytes()) !=
+            {key: source[key] for key in ("repository", "commit", "packager_commit")}):
+        raise ValueError("public artifact source identity mismatch")
+    if (set(index) != {"$schema", "skills"} or
+            index["$schema"] != "https://schemas.agentskills.io/discovery/0.2.0/schema.json" or
+            len(index["skills"]) != len(SKILLS) or {entry["name"] for entry in index["skills"]} != SKILLS):
+        raise ValueError("public artifact index inventory mismatch")
+    for entry in index["skills"]:
+        name = entry["name"]
+        raw = (public / (name + ".zip")).read_bytes()
+        if (set(entry) != {"name", "type", "description", "url", "digest"} or entry["type"] != "archive" or
+                not isinstance(entry["description"], str) or not entry["description"] or
+                entry["url"] != f"https://hitkeep.com/skills/v{version}/{name}.zip" or
+                entry["digest"] != "sha256:" + hashlib.sha256(raw).hexdigest()):
+            raise ValueError("public artifact index entry mismatch")
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            if archive.namelist() != ["SKILL.md", "references/procedure.md"] or archive.comment:
+                raise ValueError("public artifact archive inventory mismatch")
+            for item in archive.infolist():
+                if ((item.external_attr >> 16) != 0o100644 or item.file_size > 1024 * 1024 or
+                        item.compress_type != zipfile.ZIP_STORED or item.flag_bits != 8 or item.extra not in (b"", PUBLIC_MODIFIED_EXTRA) or item.comment or
+                        item.date_time != (1980, 1, 1, 0, 0, 0) or
+                        archive.read(item) != (plugin / "skills" / name / item.filename).read_bytes()):
+                    raise ValueError("public artifact differs from canonical source")
 
 
 def git(root, *args):
@@ -74,7 +127,7 @@ def sync(source_root: Path, source_commit: str, version: str, root: Path = ROOT)
     if root.is_symlink():
         raise ValueError("symlink in output root")
     root = root.resolve()
-    for relative in GENERATED:
+    for relative in GENERATED | {f"plugins/{NAME}/{path}" for path in PUBLIC}:
         path = root / relative
         if any(parent.is_symlink() for parent in (path, *path.parents)):
             raise ValueError("symlink in output path")
@@ -104,8 +157,14 @@ def sync(source_root: Path, source_commit: str, version: str, root: Path = ROOT)
             "packager_commit": packager_commit,
             "sha256": {path: hashlib.sha256(data).hexdigest() for path, data in files.items()},
         })
+        if (plugin / "public").exists():
+            shutil.rmtree(plugin / "public")
+        produce_public(source_root, source_commit, plugin / "public", version)
+        write_json(plugin / "public/source.json", {key: json.loads((plugin / "source.json").read_text())[key]
+                   for key in ("repository", "commit", "packager_commit")})
         verify_source(source_root, source_commit, stage)
-        for relative in sorted(GENERATED):
+        for relative in sorted(generated(stage)):
+            (root / relative).parent.mkdir(parents=True, exist_ok=True)
             os.replace(stage / relative, root / relative)
 
 
@@ -155,6 +214,8 @@ def verify(root=ROOT):
     if set(source["sha256"]) != expected:
         raise ValueError("canonical source allowlist changed")
     allowed = expected | {"plugin.json", ".claude-plugin/plugin.json", "source.json", "README.md"}
+    if (plugin / "public").exists():
+        allowed |= PUBLIC
     allowed_dirs = {parent.as_posix() for relative in allowed for parent in Path(relative).parents if parent != Path(".")}
     actual = set()
     for path in plugin.rglob("*"):
@@ -173,6 +234,8 @@ def verify(root=ROOT):
     for relative, digest in source["sha256"].items():
         if hashlib.sha256((plugin / relative).read_bytes()).hexdigest() != digest:
             raise ValueError(f"canonical content changed: {relative}")
+    if (plugin / "public").exists():
+        verify_public(plugin, version)
     return version, sorted(actual)
 
 

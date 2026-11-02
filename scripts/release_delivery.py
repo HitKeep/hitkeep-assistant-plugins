@@ -124,7 +124,9 @@ def unpack(raw, root):
         'plugin.json', '.claude-plugin/plugin.json', 'source.json', 'README.md'}}
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         entries = archive.infolist()
-        if len(entries) != len(expected) or {item.filename for item in entries} != expected:
+        names = {item.filename for item in entries}
+        public = {f'{package.NAME}/{path}' for path in package.PUBLIC}
+        if names not in (expected, expected | public) or len(entries) != len(names):
             raise ValueError('unsafe or incomplete package ZIP allowlist')
         if any((item.external_attr >> 16) != 0o100644 or item.file_size > 1024 * 1024 for item in entries):
             raise ValueError('non-regular, executable or oversized package ZIP content')
@@ -203,7 +205,7 @@ def prepare(tag, sha, digest, root, temp):
     if package.verify(stage)[0] != tag[1:]:
         raise ValueError('package version differs from release')
     return dict(tag=tag, sha=sha, digest=digest, head=head, release=release,
-                candidate=mraw, tree={path: (stage / path).read_bytes() for path in package.GENERATED})
+                candidate=mraw, tree={path: (stage / path).read_bytes() for path in package.generated(stage)})
 
 
 def matching_tree(root, commit, files):
@@ -213,10 +215,12 @@ def matching_tree(root, commit, files):
         if entry:
             metadata, path = entry.split(b'\t', 1)
             entries[path.decode()] = tuple(metadata.decode().split()[:2])
-    if (set(files) != package.GENERATED or
-            entries != dict.fromkeys(package.GENERATED, ('100644', 'blob'))):
+    public = {f'plugins/{package.NAME}/{path}' for path in package.PUBLIC}
+    if (set(files) not in (package.GENERATED, package.GENERATED | public) or
+            set(entries) not in (package.GENERATED, package.GENERATED | public) or
+            any(mode != ('100644', 'blob') for mode in entries.values())):
         raise ValueError('generated tree membership or regular non-executable modes differ from allowlist')
-    actual = {path: package.git(root, 'show', commit + ':' + path) for path in package.GENERATED}
+    actual = {path: package.git(root, 'show', commit + ':' + path) for path in entries}
     with tempfile.TemporaryDirectory(prefix='hitkeep-assistant-tree-') as directory:
         stage = Path(directory)
         for relative, data in actual.items():
@@ -224,7 +228,7 @@ def matching_tree(root, commit, files):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
         package.verify(stage)
-    for path in package.GENERATED:
+    for path in set(actual) & set(files):
         if path.endswith('/marketplace.json'):
             current, expected = json.loads(actual[path]), json.loads(files[path])
             if path == '.claude-plugin/marketplace.json':
@@ -283,6 +287,8 @@ def write(state, root, temp):
     commit = head
     if not matches_main:
         command('git', '-C', str(gitroot), 'read-tree', head)
+        for path in sorted({f'plugins/{package.NAME}/{path}' for path in package.PUBLIC} - set(state['tree'])):
+            command('git', '-C', str(gitroot), 'update-index', '--force-remove', '--', path)
         for path, data in sorted(state['tree'].items()):
             blob = command('git', '-C', str(gitroot), 'hash-object', '-w', '--stdin', data=data).decode().strip()
             command('git', '-C', str(gitroot), 'update-index', '--add', '--cacheinfo', '100644,' + blob + ',' + path)
@@ -293,7 +299,7 @@ def write(state, root, temp):
         commit = command('git', '-C', str(gitroot), 'commit-tree', tree, '-p', head,
                          data=('chore: sync HitKeep ' + state['tag'] + '\n').encode(), env=env).decode().strip()
         paths = command('git', '-C', str(gitroot), 'diff-tree', '--no-commit-id', '--name-only', '-r', commit).decode().splitlines()
-        if not paths or not set(paths) <= package.GENERATED:
+        if not paths or not set(paths) <= set(state['tree']) | {f'plugins/{package.NAME}/{path}' for path in package.PUBLIC}:
             raise ValueError('generated diff changes non-allowlisted files')
     push = ('git', '-C', str(gitroot), '-c', 'credential.helper=', '-c', 'credential.helper=!gh auth git-credential', 'push', 'origin')
     if newest and not matches_main:
