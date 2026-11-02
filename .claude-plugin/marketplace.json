@@ -9,7 +9,7 @@
       "name": "hitkeep-analytics",
       "source": "./plugins/hitkeep-analytics",
       "description": "Read-only HitKeep analytics workflows for connected assistants.",
-      "version": "2.16.0"
+      "version": "2.16.1"
     }
   ]
 }
