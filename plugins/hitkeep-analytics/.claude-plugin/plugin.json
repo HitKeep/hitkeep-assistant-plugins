@@ -1,6 +1,6 @@
 {
   "name": "hitkeep-analytics",
-  "version": "2.15.1",
+  "version": "2.16.0",
   "description": "Read-only HitKeep analytics workflows for connected assistants.",
   "author": {
     "name": "HitKeep"

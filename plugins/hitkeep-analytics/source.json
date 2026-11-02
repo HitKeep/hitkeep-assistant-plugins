@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/HitKeep/hitkeep",
-  "commit": "3890a0b154cab2795ff1b474b1d1e6d57a71508d",
-  "packager_commit": "dbe2227280b43d23c0b253f8796c10eb120f82c5",
+  "commit": "f93a9319c0c0bd2eddcd0d3884d1209aa63ada64",
+  "packager_commit": "4f2c2f8d4bc917629bbfaf61748c6636b04c88d1",
   "sha256": {
     "LICENSE": "2bd605b63db3a26377d8c2591872ad849e2be32e55bb8c98fec18ed7bb01a426",
     "skills/hitkeep-ai-visibility-analyst/SKILL.md": "b4d4974c01c38f72220cb6338e75ef83be1511b12caf61457c9c9480c9bd67b4",
